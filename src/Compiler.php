@@ -331,6 +331,10 @@ class Compiler
         $s = trim($s);
 
         if (strlen($s) === strlen(trim($s, '()"\''))) {
+            if (preg_match('|(.+)\.length$|', $s, $m)) {
+                return 'strlen('. $this->phpifyVariable($m[1]) .')';
+            }
+
             if (strstr($s, '.')) {
                 $s = explode('.', $s);
                 $s = array_shift($s)."['".implode("']['", $s)."']";
