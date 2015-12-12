@@ -48,3 +48,5 @@
 ### Notes
 
 - Pre-processors should be handled by a separate tool
+- Complex expressions would require tokenization
+- `{ title || 'Undefined' }` or `{ title && 'Defined' }` does not behave as in JavaScript

@@ -349,6 +349,71 @@ class Compiler
     /**
      * Transforms JavaScript expression into PHP
      *
+     */
+    public function phpifyJsExpression($m)
+    {
+        if(strstr($m, '||')) {
+            $m = explode(' || ', $m);
+
+            foreach ($m as &$mm) {
+                $mm = $this->phpifyJsExpression($mm);
+            }
+
+            return '('.strtr(implode(' || ', $m), ['%space%' => ' ']).')';
+        }
+
+        if(strstr($m, '&&')) {
+            $m = explode('&&', $m);
+
+            foreach ($m as &$mm) {
+                $mm = $this->phpifyJsExpression($mm);
+            }
+
+            return '('.strtr(implode(' && ', $m), ['%space%' => ' ']).')';
+        }
+
+        $m = trim($m);
+
+        $m = preg_replace('|\+(\s*[\w\'"])|', '.$1', $m);
+
+        if (preg_match('|^[\'"].+[\'"]$|', $m, $matches)) {
+            return str_replace(' ', '%space%', $m);
+        }
+
+        $m = preg_replace('|\bnew \b|', 'new%space%', $m);
+
+        // Foreach
+        if (strstr($m, ' in ')) {
+            $m = explode(' in ', $m);
+
+            if (strstr($m[0], ',')) {
+                $m[0] = explode (',', $m[0]);
+                $m[0] = $this->phpifyVariable($m[0][1]).' => '.$this->phpifyVariable($m[0][0]);
+            } else {
+                $m[0] = $this->phpifyVariable($m[0]);
+            }
+
+            $m = $this->phpifyVariable($m[1]).' as '.$m[0];
+        } elseif (!strstr($m, ' ')) {
+            $m = $this->phpifyVariable($m);
+        } else {
+            $m = explode(' ', $m);
+
+            foreach ($m as &$mm) {
+                $mm = $this->phpifyVariable($mm);
+            }
+
+            $m = '('.implode(' ', $m).')';
+        }
+
+        $m = strtr($m, ['%space%' => ' ']);
+
+        return $m;
+    }
+
+    /**
+     * Transforms Riot expression into PHP
+     *
      * Warning: very simple transformation
      *
      * @param string $s Javascript variable name
@@ -359,33 +424,9 @@ class Compiler
     public function phpifyExpression($e, $ctrl = null)
     {
         $e = preg_replace_callback('/'.preg_quote($this->settings['brackets'][0]).'(.+?)'.preg_quote($this->settings['brackets'][1]).'/', function($m) use ($ctrl) {
-            $m = str_replace("\t", '    ', trim($m[1]));
+            $m = str_replace("\t", ' ', trim($m[1]));
 
-            // Foreach
-            if (strstr($m, ' in ')) {
-                $m = explode(' in ', $m);
-
-                if (strstr($m[0], ',')) {
-                    $m[0] = explode (',', $m[0]);
-                    $m[0] = $this->phpifyVariable($m[0][1]).' => '.$this->phpifyVariable($m[0][0]);
-                } else {
-                    $m[0] = $this->phpifyVariable($m[0]);
-                }
-
-                $m = $this->phpifyVariable($m[1]).' as '.$m[0];
-            } elseif (!strstr($m, ' ')) {
-                $m = $this->phpifyVariable($m);
-            } else {
-                $m = explode(' ', $m);
-
-                foreach ($m as &$mm) {
-                    $mm = $this->phpifyVariable($mm);
-                }
-
-                $m = implode(' ', $m);
-            }
-
-            return $ctrl ? $m : '<?='.$m.'?>';
+            return $ctrl ? $this->phpifyJsExpression($m) : '<?='.$this->phpifyJsExpression($m).'?>';
         }, $e);
 
         return $e;
